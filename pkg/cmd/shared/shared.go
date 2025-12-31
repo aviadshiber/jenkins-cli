@@ -56,8 +56,31 @@ func WantsYAML(cmd *cobra.Command) bool {
 	return v
 }
 
+// GetJQExpression retrieves the --jq flag value from the root command.
+func GetJQExpression(cmd *cobra.Command) string {
+	v, _ := cmd.Root().PersistentFlags().GetString("jq")
+	return v
+}
+
+// WantsJQ returns true if --jq flag is set with a non-empty expression.
+func WantsJQ(cmd *cobra.Command) bool {
+	return GetJQExpression(cmd) != ""
+}
+
 func PrintOutput(cmd *cobra.Command, data interface{}, human func() error) error {
+	// Validate --jq requires --json.
+	// This validation happens at output time which is acceptable for CLI tools since
+	// the error is deterministic and occurs early in the output phase. This approach
+	// keeps flag validation consolidated with output logic rather than scattered
+	// across each command's RunE function.
+	if WantsJQ(cmd) && !WantsJSON(cmd) {
+		return fmt.Errorf("--jq requires --json flag")
+	}
+
 	if WantsJSON(cmd) {
+		if WantsJQ(cmd) {
+			return ApplyJQ(data, GetJQExpression(cmd), cmd.OutOrStdout())
+		}
 		encoded, err := json.MarshalIndent(data, "", "  ")
 		if err != nil {
 			return err
