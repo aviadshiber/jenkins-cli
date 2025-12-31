@@ -72,12 +72,44 @@ func WantsTable(cmd *cobra.Command) bool {
 	return GetOutputFormat(cmd) == "table"
 }
 
+// WantsQuiet returns true if --quiet/-q flag is set or JK_QUIET env var is present.
+// Currently supported by: run start, run rerun.
+// Other commands (view, cancel, ls) do not implement quiet mode as they primarily
+// output structured data where --json is more appropriate.
+func WantsQuiet(cmd *cobra.Command) bool {
+	if v, _ := cmd.Root().PersistentFlags().GetBool("quiet"); v {
+		return true
+	}
+	_, hasEnv := os.LookupEnv("JK_QUIET")
+	return hasEnv
+}
+
+// GetJQExpression retrieves the --jq flag value from the root command.
+func GetJQExpression(cmd *cobra.Command) string {
+	v, _ := cmd.Root().PersistentFlags().GetString("jq")
+	return v
+}
+
+// WantsJQ returns true if --jq flag is set with a non-empty expression.
+func WantsJQ(cmd *cobra.Command) bool {
+	return GetJQExpression(cmd) != ""
+}
+
 func PrintOutput(cmd *cobra.Command, data interface{}, human func() error) error {
 	// Check for conflicting output flags: --json/--yaml boolean flags cannot be used with --output
 	jsonFlagSet, _ := cmd.Root().PersistentFlags().GetBool("json")
 	yamlFlagSet, _ := cmd.Root().PersistentFlags().GetBool("yaml")
 	if (jsonFlagSet || yamlFlagSet) && GetOutputFormat(cmd) != "" {
 		return fmt.Errorf("cannot use --json or --yaml with --output flag")
+	}
+
+	// Validate --jq requires --json.
+	// This validation happens at output time which is acceptable for CLI tools since
+	// the error is deterministic and occurs early in the output phase. This approach
+	// keeps flag validation consolidated with output logic rather than scattered
+	// across each command's RunE function.
+	if WantsJQ(cmd) && !WantsJSON(cmd) {
+		return fmt.Errorf("--jq requires --json flag")
 	}
 
 	// Validate --template requires --json.
@@ -89,6 +121,10 @@ func PrintOutput(cmd *cobra.Command, data interface{}, human func() error) error
 	}
 
 	if WantsJSON(cmd) {
+		// Handle --jq flag
+		if WantsJQ(cmd) {
+			return ApplyJQ(data, GetJQExpression(cmd), cmd.OutOrStdout())
+		}
 		// Handle --template flag
 		if WantsTemplate(cmd) {
 			return ApplyTemplate(data, GetTemplate(cmd), cmd.OutOrStdout())

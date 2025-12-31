@@ -13,9 +13,10 @@ import (
 )
 
 type helpDocument struct {
-	SchemaVersion string            `json:"schemaVersion"`
-	Commands      []helpCommand     `json:"commands"`
-	ExitCodes     map[string]string `json:"exitCodes,omitempty"`
+	SchemaVersion        string            `json:"schemaVersion"`
+	Commands             []helpCommand     `json:"commands"`
+	ExitCodes            map[string]string `json:"exitCodes,omitempty"`
+	EnvironmentVariables map[string]string `json:"environmentVariables,omitempty"`
 }
 
 type helpCommand struct {
@@ -85,6 +86,7 @@ func buildHelpDocument(cmd *cobra.Command, includeExitCodes bool) helpDocument {
 	}
 	if includeExitCodes {
 		doc.ExitCodes = defaultExitCodes()
+		doc.EnvironmentVariables = defaultEnvVars()
 	}
 	return doc
 }
@@ -185,15 +187,27 @@ func printHelpJSON(cmd *cobra.Command, doc helpDocument) error {
 
 func defaultExitCodes() map[string]string {
 	return map[string]string{
-		"0": "Success",
-		"1": "General error",
-		"2": "Validation error",
-		"3": "Not found",
-		"4": "Authentication failure",
-		"5": "Permission denied",
-		"6": "Connectivity/DNS/TLS failure",
-		"7": "Timeout",
-		"8": "Feature unsupported",
+		"0":  "Success",
+		"1":  "General error",
+		"2":  "Validation error",
+		"3":  "Not found",
+		"4":  "Authentication failure",
+		"5":  "Permission denied",
+		"6":  "Connectivity/DNS/TLS failure",
+		"7":  "Timeout",
+		"8":  "Feature unsupported",
+		"10": "Build result: UNSTABLE",
+		"11": "Build result: FAILURE",
+		"12": "Build result: ABORTED",
+		"13": "Build result: NOT_BUILT",
+		"14": "Build result: RUNNING (in-progress)",
+	}
+}
+
+func defaultEnvVars() map[string]string {
+	return map[string]string{
+		"JK_CONTEXT": "Override the active Jenkins context (same as --context/-c flag)",
+		"JK_QUIET":   "Enable quiet mode for supported commands (same as --quiet/-q flag)",
 	}
 }
 
@@ -221,6 +235,7 @@ func printRootHelp(cmd *cobra.Command) {
 		printFlagSection(out, flags)
 	}
 
+	printEnvVarsSection(out)
 	printExamplesSection(out)
 	printLearnMoreSection(out)
 }
@@ -386,6 +401,34 @@ func printFlagSection(out io.Writer, rows []flagRow) {
 			usage = "(undocumented)"
 		}
 		_, _ = fmt.Fprintf(out, "  %-*s %s\n", width, row.Label, usage)
+	}
+	_, _ = fmt.Fprintln(out)
+}
+
+func printEnvVarsSection(out io.Writer) {
+	envVars := defaultEnvVars()
+	if len(envVars) == 0 {
+		return
+	}
+
+	_, _ = fmt.Fprintln(out, "ENVIRONMENT VARIABLES")
+	width := 0
+	for name := range envVars {
+		if w := utf8.RuneCountInString(name); w > width {
+			width = w
+		}
+	}
+	width += 2
+
+	// Sort keys for consistent output
+	keys := make([]string, 0, len(envVars))
+	for k := range envVars {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, name := range keys {
+		_, _ = fmt.Fprintf(out, "  %-*s %s\n", width, name, envVars[name])
 	}
 	_, _ = fmt.Fprintln(out)
 }

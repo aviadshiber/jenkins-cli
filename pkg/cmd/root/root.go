@@ -44,11 +44,13 @@ Quick start:
 
 	root.SetContext(context.Background())
 
-	root.PersistentFlags().StringP("context", "c", "", "Active Jenkins context name")
+	root.PersistentFlags().StringP("context", "c", "", "Active Jenkins context name (or set JK_CONTEXT env var)")
 	root.PersistentFlags().Bool("json", false, "Output in JSON format when supported")
 	root.PersistentFlags().Bool("yaml", false, "Output in YAML format when supported")
 	root.PersistentFlags().StringP("output", "o", "", "Output format: json, yaml, table")
+	root.PersistentFlags().String("jq", "", "Filter JSON output using jq expression (requires --json)")
 	root.PersistentFlags().StringP("template", "t", "", "Format output using Go template (requires --json)")
+	root.PersistentFlags().BoolP("quiet", "q", false, "Suppress non-essential output")
 
 	root.AddCommand(
 		auth.NewCmdAuth(f),
